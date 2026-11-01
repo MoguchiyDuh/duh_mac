@@ -1,0 +1,413 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = []
+# ///
+import argparse
+import colorsys
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import tomllib
+from dataclasses import dataclass, replace
+from pathlib import Path
+from typing import Any
+
+VIDEO = frozenset({".mp4", ".webm", ".mkv", ".mov"})
+MODES = frozenset({"dark", "light"})
+THEME_REPORTS = {"dark": "1", "light": "2"}
+SCHEMES = frozenset(
+    {
+        "scheme-content",
+        "scheme-expressive",
+        "scheme-fidelity",
+        "scheme-fruit-salad",
+        "scheme-monochrome",
+        "scheme-neutral",
+        "scheme-rainbow",
+        "scheme-tonal-spot",
+        "scheme-vibrant",
+    }
+)
+KEYS = frozenset({"wallpaper", "mode", "scheme", "contrast", "seed"})
+HEX = re.compile(r"#[0-9A-Fa-f]{6}")
+ESCAPES = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+GRAPHITE = -1
+ACCENT_HUES: tuple[tuple[float, int], ...] = (
+    (15.0, 0),
+    (45.0, 1),
+    (70.0, 2),
+    (170.0, 3),
+    (255.0, 4),
+    (300.0, 5),
+    (345.0, 6),
+    (360.0, 0),
+)
+ACCENT_NOTIFY = (
+    'ObjC.import("Foundation");'
+    "$.NSDistributedNotificationCenter.defaultCenter"
+    '.postNotificationNameObjectUserInfoDeliverImmediately("AppleColorPreferencesChangedNotification", $(), $(), true);'
+    "$.NSDistributedNotificationCenter.defaultCenter"
+    '.postNotificationNameObjectUserInfoDeliverImmediately("AppleAquaColorVariantChanged", $(), $(), true);'
+)
+WALLPAPER_SCRIPT = (
+    "on run argv\n"
+    'tell application "System Events" to tell every desktop to set picture to (item 1 of argv)\n'
+    "end run"
+)
+
+
+class ThemeError(Exception):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class Config:
+    wallpaper: Path | None
+    mode: str
+    scheme: str
+    contrast: float
+    seed: str
+
+
+def _xdg(name: str, fallback: str) -> Path:
+    value = os.environ.get(name, "")
+    if value and os.path.isabs(value):
+        return Path(value)
+    return Path.home() / fallback
+
+
+def config_home() -> Path:
+    return _xdg("XDG_CONFIG_HOME", ".config")
+
+
+def state_dir() -> Path:
+    return _xdg("XDG_STATE_HOME", ".local/state") / "duh" / "theme"
+
+
+def state_file() -> Path:
+    return state_dir() / "wallpaper"
+
+
+def mode_file() -> Path:
+    return state_dir() / "mode"
+
+
+def warn(message: str) -> None:
+    print(f"duh-theme: {message}", file=sys.stderr)
+
+
+def _field(path: Path, data: dict[str, Any], key: str) -> Any:
+    if key not in data:
+        raise ThemeError(f"{path}: missing {key!r}")
+    return data[key]
+
+
+def load_config() -> Config:
+    path = config_home() / "duh" / "theme.toml"
+    try:
+        with path.open("rb") as handle:
+            data = tomllib.load(handle)
+    except FileNotFoundError:
+        raise ThemeError(f"{path}: not found") from None
+    except tomllib.TOMLDecodeError as e:
+        raise ThemeError(f"{path}: invalid TOML: {e}") from None
+    except OSError as e:
+        raise ThemeError(f"{path}: cannot read: {e.strerror}") from None
+    unknown = sorted(set(data) - KEYS)
+    if unknown:
+        raise ThemeError(f"{path}: unknown key {unknown[0]!r}")
+    raw = data.get("wallpaper", "")
+    if not isinstance(raw, str):
+        raise ThemeError(f"{path}: 'wallpaper' must be a string")
+    wallpaper = Path(raw).expanduser() if raw else None
+    if wallpaper is not None and not wallpaper.is_absolute():
+        raise ThemeError(f"{path}: 'wallpaper' must be an absolute path or start with ~")
+    mode = _field(path, data, "mode")
+    if mode not in MODES:
+        raise ThemeError(f"{path}: 'mode' must be one of {', '.join(sorted(MODES))}")
+    scheme = _field(path, data, "scheme")
+    if scheme not in SCHEMES:
+        raise ThemeError(f"{path}: 'scheme' must be one of {', '.join(sorted(SCHEMES))}")
+    contrast = _field(path, data, "contrast")
+    if isinstance(contrast, bool) or not isinstance(contrast, int | float):
+        raise ThemeError(f"{path}: 'contrast' must be a number")
+    if not -1.0 <= contrast <= 1.0:
+        raise ThemeError(f"{path}: 'contrast' must be between -1 and 1")
+    seed = _field(path, data, "seed")
+    if not isinstance(seed, str) or not HEX.fullmatch(seed):
+        raise ThemeError(f"{path}: 'seed' must be a #rrggbb color")
+    return Config(wallpaper, mode, scheme, float(contrast), seed)
+
+
+def _read_line(path: Path) -> str | None:
+    try:
+        text = path.read_text().strip()
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeDecodeError) as e:
+        raise ThemeError(f"{path}: cannot read: {e}") from None
+    return text or None
+
+
+def read_state() -> Path | None:
+    text = _read_line(state_file())
+    return Path(text) if text else None
+
+
+def read_mode() -> str | None:
+    text = _read_line(mode_file())
+    if text is None:
+        return None
+    if text not in MODES:
+        warn(f"{mode_file()}: ignoring unknown mode {text!r}")
+        return None
+    return text
+
+
+def load_effective() -> Config:
+    config = load_config()
+    mode = read_mode()
+    if mode is None:
+        return config
+    return replace(config, mode=mode)
+
+
+def _write(path: Path, text: str) -> None:
+    tmp = path.with_name(f".{path.name}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(text)
+        tmp.replace(path)
+    except OSError as e:
+        raise ThemeError(f"{path}: cannot write: {e.strerror}") from None
+
+
+def usable(path: Path | None) -> bool:
+    return path is not None and path.suffix.lower() not in VIDEO and path.is_file()
+
+
+def _execute(argv: list[str]) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, check=False
+        )
+    except FileNotFoundError:
+        raise ThemeError(f"{argv[0]}: not installed") from None
+    except OSError as e:
+        raise ThemeError(f"{argv[0]}: cannot run: {e.strerror}") from None
+
+
+def _quiet(argv: list[str]) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return _execute(argv)
+    except ThemeError:
+        return None
+
+
+def _reason(result: subprocess.CompletedProcess[str]) -> str:
+    for line in ESCAPES.sub("", result.stderr).splitlines():
+        line = line.strip()
+        if line and line != "Error:":
+            return line
+    return f"exit status {result.returncode}"
+
+
+def matugen(config: Config, source: list[str], wallpaper: str) -> None:
+    settings = config_home() / "matugen" / "config.toml"
+    if not settings.is_file():
+        raise ThemeError(f"{settings}: not found")
+    extra = json.dumps({"duh": {"wallpaper": json.dumps(wallpaper)[1:-1]}})
+    argv = [
+        "matugen",
+        "--quiet",
+        "--config",
+        str(settings),
+        "--mode",
+        config.mode,
+        "--type",
+        config.scheme,
+        "--contrast",
+        str(config.contrast),
+        "--import-json-string",
+        extra,
+        *source,
+    ]
+    result = _execute(argv)
+    if result.returncode != 0:
+        raise ThemeError(f"matugen failed for {source[-1]}: {_reason(result)}")
+
+
+def generate(config: Config) -> Path | None:
+    tried: set[Path] = set()
+    for candidate in (read_state(), config.wallpaper):
+        if candidate is None or candidate in tried or not usable(candidate):
+            continue
+        tried.add(candidate)
+        try:
+            matugen(config, ["image", str(candidate)], str(candidate))
+        except ThemeError as e:
+            warn(str(e))
+            continue
+        return candidate
+    warn(f"no usable wallpaper, palette from seed {config.seed}")
+    matugen(config, ["color", "hex", config.seed], "")
+    return None
+
+
+def show(path: Path) -> None:
+    result = _execute(["osascript", "-e", WALLPAPER_SCRIPT, str(path)])
+    if result.returncode != 0:
+        warn(f"wallpaper {path}: {_reason(result)}")
+
+
+def _signal(name: str, sig: signal.Signals) -> None:
+    result = _quiet(["pgrep", "-x", "-u", str(os.getuid()), name])
+    if result is None or result.returncode != 0:
+        return
+    for word in result.stdout.split():
+        if not word.isdigit():
+            continue
+        try:
+            os.kill(int(word), sig)
+        except (ProcessLookupError, PermissionError):
+            continue
+
+
+def _notify_panes(mode: str) -> None:
+    result = _quiet(
+        [
+            "tmux",
+            "list-panes",
+            "-a",
+            "-F",
+            "#{pane_id} #{pane_in_mode} #{synchronize-panes} #{pane_private_modes}",
+        ]
+    )
+    if result is None or result.returncode != 0:
+        return
+    report = [f"{byte:02x}" for byte in f"\x1b[?997;{THEME_REPORTS[mode]}n".encode()]
+    for line in result.stdout.splitlines():
+        fields = line.split(" ")
+        if len(fields) != 4:
+            continue
+        pane, in_mode, synchronized, modes = fields
+        if in_mode != "0" or synchronized == "1" or "2031" not in modes.split(","):
+            continue
+        _quiet(["tmux", "send-keys", "-t", pane, "-H", *report])
+
+
+def _accent_index(hex_color: str) -> int:
+    r, g, b = (int(hex_color[i : i + 2], 16) / 255 for i in (1, 3, 5))
+    hue, light, sat = colorsys.rgb_to_hls(r, g, b)
+    if sat < 0.15 or light < 0.08 or light > 0.95:
+        return GRAPHITE
+    degrees = hue * 360
+    for limit, value in ACCENT_HUES:
+        if degrees < limit:
+            return value
+    return 0
+
+
+def _accent() -> None:
+    source = state_dir() / "colors.json"
+    try:
+        primary = json.loads(source.read_text())["colors"]["primary"]
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        warn(f"accent: {source}: {e}")
+        return
+    if not isinstance(primary, str) or not HEX.fullmatch(primary):
+        warn(f"accent: bad primary {primary!r}")
+        return
+    value = str(_accent_index(primary))
+    current = _quiet(["defaults", "read", "-g", "AppleAccentColor"])
+    if current is not None and current.returncode == 0 and current.stdout.strip() == value:
+        return
+    result = _quiet(["defaults", "write", "-g", "AppleAccentColor", "-int", value])
+    if result is None or result.returncode != 0:
+        warn("accent: cannot write AppleAccentColor")
+        return
+    _quiet(["osascript", "-l", "JavaScript", "-e", ACCENT_NOTIFY])
+
+
+def reload(mode: str) -> None:
+    _quiet(["tmux", "source-file", "-q", str(config_home() / "tmux" / "tmux.conf")])
+    _signal("ghostty", signal.SIGUSR2)
+    _signal("nvim", signal.SIGUSR1)
+    _accent()
+    _notify_panes(mode)
+
+
+def cmd_set(target: str) -> None:
+    path = Path(target).expanduser()
+    if path.suffix.lower() in VIDEO:
+        raise ThemeError(f"{path}: video wallpapers are not supported")
+    if not path.is_file():
+        raise ThemeError(f"{path}: no such file")
+    path = path.resolve()
+    config = load_effective()
+    matugen(config, ["image", str(path)], str(path))
+    _write(state_file(), f"{path}\n")
+    show(path)
+    reload(config.mode)
+
+
+def cmd_apply() -> None:
+    config = load_effective()
+    wallpaper = generate(config)
+    if wallpaper is not None:
+        show(wallpaper)
+    reload(config.mode)
+
+
+def cmd_mode(target: str | None) -> None:
+    config = load_effective()
+    if target is None:
+        print(config.mode)
+        return
+    mode = target
+    if target == "toggle":
+        mode = "light" if config.mode == "dark" else "dark"
+    config = replace(config, mode=mode)
+    generate(config)
+    _write(mode_file(), f"{mode}\n")
+    reload(mode)
+
+
+def parse(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="duh-theme", description="Wallpaper and palette")
+    commands = parser.add_subparsers(dest="command", required=True)
+    setter = commands.add_parser("set", help="set the wallpaper and regenerate the palette")
+    setter.add_argument("file")
+    commands.add_parser("apply", help="regenerate the palette from the current wallpaper")
+    mode = commands.add_parser("mode", help="print or switch between light and dark")
+    mode.add_argument("mode", nargs="?", choices=[*sorted(MODES), "toggle"])
+    return parser.parse_args(argv)
+
+
+def main() -> int:
+    if sys.platform != "darwin":
+        warn("macOS only")
+        return 1
+    args = parse(sys.argv[1:])
+    try:
+        match args.command:
+            case "set":
+                cmd_set(args.file)
+            case "apply":
+                cmd_apply()
+            case "mode":
+                cmd_mode(args.mode)
+    except ThemeError as e:
+        warn(str(e))
+        return 1
+    except KeyboardInterrupt:
+        return 130
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

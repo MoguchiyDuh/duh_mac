@@ -1,0 +1,24 @@
+font-family = FiraCode Nerd Font Mono
+font-size = 12
+
+cursor-style = bar
+cursor-style-blink = false
+mouse-hide-while-typing = true
+
+window-padding-x = 8
+window-padding-y = 8
+window-padding-balance = true
+window-padding-color = background
+background-opacity = 0.7
+background-blur = true
+unfocused-split-opacity = 1
+
+confirm-close-surface = false
+bell-features = no-system,no-audio,attention,title
+shell-integration-features = cursor,sudo,title,ssh-env,ssh-terminfo
+
+macos-titlebar-style = transparent
+macos-titlebar-proxy-icon = hidden
+macos-option-as-alt = left
+app-notifications = no-config-reload
+config-file = ?~/.local/state/duh/theme/ghostty

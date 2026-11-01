@@ -1,0 +1,26 @@
+[config]
+prefer = "saturation"
+
+[templates.ghostty]
+input_path = "./templates/ghostty.conf"
+output_path = "~/.local/state/duh/theme/ghostty"
+
+[templates.tmux]
+input_path = "./templates/tmux.conf"
+output_path = "~/.local/state/duh/theme/tmux.conf"
+
+[templates.gitmux]
+input_path = "./templates/gitmux.conf"
+output_path = "~/.local/state/duh/theme/gitmux.conf"
+
+[templates.nvim]
+input_path = "./templates/nvim.lua"
+output_path = "~/.local/state/duh/theme/nvim/colors/dynamic.lua"
+
+[templates.colors]
+input_path = "./templates/colors.json"
+output_path = "~/.local/state/duh/theme/colors.json"
+
+[templates.obsidian]
+input_path = "./templates/obsidian.css"
+output_path = "~/Documents/codex/.obsidian/snippets/matugen.css"

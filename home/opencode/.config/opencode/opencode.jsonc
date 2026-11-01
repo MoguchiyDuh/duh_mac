@@ -1,0 +1,184 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    {
+      "action": "playwright_*",
+      "resource": "*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "sudo *",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "git commit *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git push *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "osascript *administrator privileges*",
+      "effect": "ask"
+    }
+  ],
+  "plugins": [
+    "file:{env:HOME}/Documents/duh-claude-auth",
+    "file:{env:HOME}/Documents/duh-websearch",
+    {
+      "package": "file:{env:HOME}/Documents/duh-agy-auth",
+      "options": {
+        "google_search": false
+      }
+    }
+  ],
+  "websearch": {
+    "provider": "random"
+  },
+  "agents": {
+    "general": {
+      "model": "opencode-go/deepseek-v4.1-flash"
+    },
+    "explore": {
+      "model": "opencode-go/deepseek-v4.1-flash"
+    }
+  },
+  "providers": {
+    "google": {
+      "package": "aisdk:@ai-sdk/google",
+      "models": {
+        "antigravity-gemini-3.8-flash": {
+          "name": "Gemini 3.8 Flash (Antigravity)",
+          "limit": {
+            "context": 1048576,
+            "input": 277778,
+            "output": 65536
+          },
+          "capabilities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": [
+            {
+              "id": "low",
+              "settings": {
+                "thinkingLevel": "low"
+              }
+            },
+            {
+              "id": "medium",
+              "settings": {
+                "thinkingLevel": "medium"
+              }
+            },
+            {
+              "id": "high",
+              "settings": {
+                "thinkingLevel": "high"
+              }
+            }
+          ]
+        },
+        "antigravity-claude-sonnet-4-6": {
+          "name": "Claude Sonnet 4.6 (Antigravity)",
+          "limit": {
+            "context": 200000,
+            "output": 64000
+          },
+          "capabilities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "antigravity-claude-opus-4-6-thinking": {
+          "name": "Claude Opus 4.6 Thinking (Antigravity)",
+          "limit": {
+            "context": 200000,
+            "output": 64000
+          },
+          "capabilities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": [
+            {
+              "id": "low",
+              "settings": {
+                "thinkingConfig": {
+                  "thinkingBudget": 8192
+                }
+              }
+            },
+            {
+              "id": "medium",
+              "settings": {
+                "thinkingConfig": {
+                  "thinkingBudget": 16384
+                }
+              }
+            },
+            {
+              "id": "max",
+              "settings": {
+                "thinkingConfig": {
+                  "thinkingBudget": 32768
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "mcp": {
+    "servers": {
+      "context7": {
+        "type": "remote",
+        "url": "https://mcp.context7.com/mcp",
+        "disabled": false
+      },
+      "gh_grep": {
+        "type": "remote",
+        "url": "https://mcp.grep.app",
+        "disabled": false
+      },
+      "playwright": {
+        "type": "local",
+        "command": [
+          "npx",
+          "-y",
+          "@playwright/mcp@latest",
+          "--browser=chromium",
+          "--user-data-dir={env:HOME}/.playwright-mcp/shared-profile"
+        ],
+        "disabled": false,
+        "environment": {
+          "PLAYWRIGHT_MCP_EXECUTABLE_PATH": "/Applications/Helium.app/Contents/MacOS/Helium"
+        }
+      }
+    }
+  }
+}

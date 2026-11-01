@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+completions="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/site-functions"
+
+die() {
+    printf 'bootstrap: %s\n' "$*" >&2
+    exit 1
+}
+
+step() {
+    printf '\n==> %s\n' "$*"
+}
+
+[[ $(uname -s) == Darwin ]] || die "macOS only"
+
+if ! xcode-select -p >/dev/null 2>&1; then
+    xcode-select --install || true
+    die "finish the Command Line Tools install, then rerun"
+fi
+
+if ! command -v brew >/dev/null 2>&1; then
+    step "homebrew"
+    [[ -x /opt/homebrew/bin/brew ]] || NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+eval "$(/opt/homebrew/bin/brew shellenv)"
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOMEBREW_PREFIX/opt/rustup/bin:$PATH"
+
+step "rust toolchain"
+brew install --quiet rustup
+rustup default stable
+rustup component add rust-analyzer
+
+step "brew bundle"
+brew bundle install --file "$repo/Brewfile" --no-upgrade
+
+step "stow"
+packages=("$repo"/home/*/)
+packages=("${packages[@]%/}")
+packages=("${packages[@]##*/}")
+stow --dir "$repo/home" --target "$HOME" --no-folding --restow "${packages[@]}"
+
+step "zsh completions"
+mkdir -p "$completions"
+rustup completions zsh cargo >"$completions/_cargo"
+rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/zcompdump-*
+
+step "theme"
+duh-theme apply
+
+step "neovim"
+nvim --headless "+Lazy! sync" +qa
+nvim --headless "+lua require('nvim-treesitter').install(require('duh.lang').parsers):wait(600000)" +qa
+
+step "tldr"
+tldr --update
+
+printf '\ndone\n'

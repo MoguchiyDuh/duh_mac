@@ -1,0 +1,7 @@
+--theme=ansi
+--style=auto
+--paging=auto
+
+--map-syntax 'uv.lock:TOML'
+--map-syntax '.env*:DotENV'
+--map-syntax 'Brewfile:Ruby'

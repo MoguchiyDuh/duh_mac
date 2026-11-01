@@ -1,0 +1,4 @@
+git:
+  diffRenderers:
+    - name: delta
+      command: delta --no-gitconfig --{{colorScheme}} --paging=never --syntax-theme=ansi --line-numbers --hyperlinks --hyperlinks-file-link-format="lazygit-edit://{path}:{line}" {{if gt .width 160}}--side-by-side{{end}}
