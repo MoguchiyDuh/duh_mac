@@ -85,9 +85,7 @@ brew "docker-compose"
 brew "anomalyco/tap/opencode-v2"
 brew "lizardbyte/homebrew/sunshine", trusted: true
 
-cask "font-charis"
 cask "font-fira-code-nerd-font"
-cask "font-jetbrains-mono-nerd-font"
 cask "ghostty"
 cask "anki"
 cask "bitwarden"
