@@ -1,5 +1,4 @@
 tap "anomalyco/tap", trusted: true
-tap "lizardbyte/homebrew", "https://github.com/LizardByte/homebrew-homebrew", trusted: true
 
 brew "zsh-autosuggestions"
 brew "zsh-completions"
@@ -14,8 +13,6 @@ brew "fastfetch"
 brew "eza"
 brew "stow"
 
-brew "age"
-brew "aria2"
 brew "btop"
 brew "croc"
 brew "curl"
@@ -83,7 +80,6 @@ brew "docker-buildx"
 brew "docker-compose"
 
 brew "anomalyco/tap/opencode-v2"
-brew "lizardbyte/homebrew/sunshine", trusted: true
 
 cask "font-fira-code-nerd-font"
 cask "ghostty"
@@ -96,16 +92,9 @@ cask "gimp"
 cask "helium-browser"
 cask "libreoffice"
 cask "middleclick"
-cask "moonlight"
-cask "obs"
-cask "obsidian"
-cask "qbittorrent"
 cask "raycast"
-cask "steam"
 cask "telegram"
-cask "tor-browser"
 cask "vlc"
-cask "zed"
 cask "zerotier-one"
 
 cargo "matugen"
