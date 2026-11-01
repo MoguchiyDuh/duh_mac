@@ -1,0 +1,5 @@
+tap "lizardbyte/homebrew", "https://github.com/LizardByte/homebrew-homebrew", trusted: true
+
+brew "lizardbyte/homebrew/sunshine", trusted: true
+brew "miniupnpc"
+cask "moonlight"

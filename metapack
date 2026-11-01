@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+die() {
+    printf 'metapack: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    printf 'usage: metapack list | metapack <name> | metapack <name> show\n'
+}
+
+list() {
+    local file name
+    for file in "$repo"/Brewfile.*; do
+        [[ -e $file ]] || continue
+        name="$(basename "$file" | sed 's/^Brewfile\.//')"
+        printf '%-16s %2d entries\n' "$name" "$(grep -Ec '^(brew|cask|cargo|uv) ' "$file")"
+    done
+}
+
+[[ $# -ge 1 ]] || { usage; exit 1; }
+
+case $1 in
+list | -l | --list)
+    list
+    ;;
+-h | --help | help)
+    usage
+    ;;
+*)
+    name=$1
+    shift
+    file="$repo/Brewfile.$name"
+    [[ -f $file ]] || { list >&2; die "no such metapack: $name"; }
+    case ${1-} in
+    show | -s | --show)
+        cat "$file"
+        ;;
+    "")
+        exec brew bundle install --file "$file" --no-upgrade
+        ;;
+    *)
+        usage >&2
+        exit 1
+        ;;
+    esac
+    ;;
+esac
