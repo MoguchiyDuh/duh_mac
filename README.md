@@ -1,12 +1,12 @@
 # duh_mac
 
-macOS dotfiles. Plain GNU Stow, one Brewfile, no rendering.
+macOS dotfiles. Plain GNU Stow, one Brewfile, optional metapacks.
 
 ## Layout
 
-- `home/<pkg>/` mirrors `$HOME`, stowed with `--no-folding`: `bat`, `fastfetch`, `ghostty`, `git` (git, gh, lazygit), `nvim`, `opencode`, `starship`, `theme`, `tmux`, `zsh`.
-- `Brewfile` has taps, formulae, casks, cargo and uv tools.
-- `Brewfile.<name>` are optional metapacks, installed on request with `./metapack <name>`.
+- `home/<pkg>/` mirrors `$HOME`, stowed with `--no-folding`: `bat`, `fastfetch`, `ghostty`, `git` (git, gh, lazygit), `nvim`, `starship`, `theme`, `tmux`, `zsh`.
+- `Brewfile` has the base taps, formulae, casks, cargo and uv tools.
+- `meta/<name>/` is a metapack: `Brewfile` plus an optional `home/` tree that gets stowed on top of the base.
 - `bootstrap` handles a fresh install: Command Line Tools, Homebrew, rust toolchain, `brew bundle`, stow, zsh completions, theme, nvim plugins and parsers, tldr.
 
 ## Setup
@@ -19,17 +19,21 @@ git clone <repo> ~/duh_mac
 
 ## Metapacks
 
-Off-by-default tool groups. `bootstrap` and the main `Brewfile` never pull them in.
+Off by default. `bootstrap` and the base `Brewfile` never pull them in.
 
 ```
-./metapack list              # available metapacks
-./metapack stream show       # what it installs
-./metapack stream            # brew bundle install --file Brewfile.stream
+./metapack list              # name, package count, stowed file count
+./metapack opencode show     # what it installs and links
+./metapack opencode          # brew bundle install --file meta/opencode/Brewfile, then stow
+./metapack opencode remove   # unlink only; packages stay installed
 ```
 
-- `stream` — sunshine host, moonlight client, miniupnpc for router port mapping.
+| pack | contents |
+|---|---|
+| `opencode` | `anomalyco/tap/opencode-v2`, plus `~/.config/opencode` (agents, commands, skills, MCP config) and `duh-quota-lookup` |
+| `stream` | sunshine host, moonlight client, miniupnpc for router port mapping |
 
-Removing one is manual: `brew uninstall --cask moonlight && brew uninstall lizardbyte/homebrew/sunshine`.
+Uninstalling the packages themselves is manual, e.g. `brew uninstall --cask moonlight` and `brew uninstall lizardbyte/homebrew/sunshine`.
 
 ## Daily
 

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+meta="$repo/meta"
 
 die() {
     printf 'metapack: %s\n' "$*" >&2
@@ -9,16 +10,28 @@ die() {
 }
 
 usage() {
-    printf 'usage: metapack list | metapack <name> | metapack <name> show\n'
+    printf 'usage: metapack list | metapack <name> [show] | metapack <name> remove\n'
 }
 
 list() {
-    local file name
-    for file in "$repo"/Brewfile.*; do
-        [[ -e $file ]] || continue
-        name="$(basename "$file" | sed 's/^Brewfile\.//')"
-        printf '%-16s %2d entries\n' "$name" "$(grep -Ec '^(brew|cask|cargo|uv) ' "$file")"
+    local dir name packages files
+    for dir in "$meta"/*/; do
+        [[ -d $dir ]] || continue
+        name="$(basename "$dir")"
+        packages="$(grep -Ec '^(brew|cask|cargo|uv) ' "$dir/Brewfile" 2>/dev/null || true)"
+        files="$(find "$dir/home" -type f 2>/dev/null | wc -l | tr -d ' ' || true)"
+        printf '%-12s %3s packages %3s files\n' "$name" "${packages:-0}" "${files:-0}"
     done
+}
+
+link() {
+    local name=$1 action=$2
+    [[ -d $meta/$name/home ]] || return 0
+    local -a trees
+    trees=("$meta/$name/home"/*/)
+    trees=("${trees[@]%/}")
+    trees=("${trees[@]##*/}")
+    stow --dir "$meta/$name/home" --target "$HOME" --no-folding "$action" "${trees[@]}"
 }
 
 [[ $# -ge 1 ]] || { usage; exit 1; }
@@ -33,14 +46,24 @@ list | -l | --list)
 *)
     name=$1
     shift
-    file="$repo/Brewfile.$name"
-    [[ -f $file ]] || { list >&2; die "no such metapack: $name"; }
+    dir="$meta/$name"
+    [[ -d $dir ]] || { list >&2; die "no such metapack: $name"; }
     case ${1-} in
     show | -s | --show)
-        cat "$file"
+        cat "$dir/Brewfile" 2>/dev/null || printf 'no packages\n'
+        if [[ -d $dir/home ]]; then
+            printf '\nstows:\n'
+            find "$dir/home" -mindepth 1 -maxdepth 1 | sed "s|$dir/home/||" | sort
+        fi
+        ;;
+    remove | unlink)
+        link "$name" -D
+        printf 'unlinked %s; packages left installed\n' "$name"
         ;;
     "")
-        exec brew bundle install --file "$file" --no-upgrade
+        [[ -f $dir/Brewfile ]] && brew bundle install --file "$dir/Brewfile" --no-upgrade
+        link "$name" -R
+        printf 'installed %s\n' "$name"
         ;;
     *)
         usage >&2

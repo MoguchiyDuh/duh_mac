@@ -1,4 +1,3 @@
-tap "anomalyco/tap", trusted: true
 
 brew "zsh-autosuggestions"
 brew "zsh-completions"
@@ -78,7 +77,6 @@ brew "docker"
 brew "docker-buildx"
 brew "docker-compose"
 
-brew "anomalyco/tap/opencode-v2"
 
 cask "font-fira-code-nerd-font"
 cask "ghostty"
