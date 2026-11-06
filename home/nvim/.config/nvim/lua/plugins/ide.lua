@@ -36,11 +36,11 @@ return {
 		config = function()
 			require("conflict").setup({
 				default_mappings = {
-					current = "co",
-					incoming = "ct",
-					both = "cb",
-					base = false,
-					none = "c0",
+					current = "<leader>gco",
+					incoming = "<leader>gct",
+					both = "<leader>gcb",
+					base = "<leader>gcB",
+					none = "<leader>gc0",
 					next = "]x",
 					prev = "[x",
 				},

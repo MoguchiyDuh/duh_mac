@@ -109,6 +109,7 @@ return {
 				{ "<leader>d", group = "debug" },
 				{ "<leader>f", group = "find" },
 				{ "<leader>g", group = "git" },
+				{ "<leader>gc", group = "conflict" },
 				{ "<leader>s", group = "split" },
 				{ "<leader>u", group = "toggle" },
 				{ "<leader>x", group = "trouble" },
