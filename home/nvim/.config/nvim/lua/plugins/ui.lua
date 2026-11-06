@@ -20,6 +20,7 @@ return {
 			},
 			explorer = { enabled = true, replace_netrw = true },
 			indent = { enabled = true },
+			image = { enabled = true },
 			input = { enabled = true },
 			notifier = { enabled = true, timeout = 3000 },
 			picker = {
